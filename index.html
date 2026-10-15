@@ -1,0 +1,648 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>
+<title>Тестовый псориаз</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=PT+Serif:wght@400;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: «история болезни» — лист приёма с карточкой пациента слева и заданием справа; этапы как графы медкарты */
+:root{
+  --paper:#eef3f4; --sheet:#ffffff; --ink:#18262f; --muted:#5b6c76; --line:#d3dee2;
+  --accent:#1c6b86; --accent-soft:#e1eff4; --stamp:#b3261e; --ok:#2b7a4b; --ok-soft:#e3f2e8; --bad-soft:#f8e4e2; --warn:#9a6b00;
+  --f-display:"PT Serif",Georgia,"Times New Roman",serif;
+  --f-body:"IBM Plex Sans",-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#0f171c; --sheet:#16222a; --ink:#e3ecef; --muted:#93a6b0; --line:#2a3a44;
+  --accent:#5fb3d1; --accent-soft:#18323d; --stamp:#ff6f61; --ok:#6fcf97; --ok-soft:#173226; --bad-soft:#3a1d1b; --warn:#e3b34a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#0f171c; --sheet:#16222a; --ink:#e3ecef; --muted:#93a6b0; --line:#2a3a44;
+  --accent:#5fb3d1; --accent-soft:#18323d; --stamp:#ff6f61; --ok:#6fcf97; --ok-soft:#173226; --bad-soft:#3a1d1b; --warn:#e3b34a; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{background:var(--paper);color:var(--ink)}
+body{font-family:var(--f-body);font-size:16px;line-height:1.5;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:1080px;margin:0 auto;display:grid;gap:18px}
+header.top{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 20px;border-bottom:2px solid var(--ink);padding-bottom:10px}
+.brand{font-family:var(--f-display);font-size:1.7rem;font-weight:700;letter-spacing:.01em}
+.brand small{display:block;font-family:var(--f-mono);font-size:.72rem;font-weight:400;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.who{font-family:var(--f-mono);font-size:.8rem;color:var(--muted)}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.45rem} h3{font-size:1.1rem}
+p{margin:0}
+.steps{display:flex;flex-wrap:wrap;gap:6px;list-style:none;margin:0;padding:0;counter-reset:s}
+.steps li{counter-increment:s;font-size:.8rem;padding:5px 10px;border:1px solid var(--line);border-radius:999px;color:var(--muted);background:var(--sheet)}
+.steps li::before{content:counter(s) " · ";font-family:var(--f-mono)}
+.steps li.on{border-color:var(--accent);color:var(--accent);font-weight:600}
+.steps li.done{color:var(--ink)}
+.grid{display:grid;grid-template-columns:300px minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.grid{grid-template-columns:minmax(0,1fr)}}
+.sheet{background:var(--sheet);border:1px solid var(--line);border-radius:6px;padding:20px;display:grid;gap:14px;min-width:0}
+.patient{position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
+@media (max-width:760px){.patient{position:static}}
+.patient svg{width:100%;height:auto;max-width:220px;justify-self:center;border-radius:6px;background:var(--accent-soft)}
+.field{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-size:.9rem}
+.field dt{font-family:var(--f-mono);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding-top:3px}
+.field dd{margin:0}
+.bubble{background:var(--accent-soft);border-radius:4px 14px 14px 14px;padding:12px 14px;font-size:.95rem}
+.eyebrow{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.hint{color:var(--muted);font-size:.9rem}
+.opts{display:grid;gap:8px}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:6px;cursor:pointer;background:var(--sheet)}
+.opt:hover{border-color:var(--accent)}
+.opt input{margin-top:4px;accent-color:var(--accent);width:18px;height:18px;flex:none}
+.opt.sel{border-color:var(--accent);background:var(--accent-soft)}
+.opt.locked{cursor:default}
+.btns{display:flex;flex-wrap:wrap;gap:10px}
+button{font:inherit;font-weight:600;border-radius:6px;padding:10px 18px;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:var(--sheet)}
+button.ghost{background:transparent;color:var(--accent)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,.opt:focus-within,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.qa{display:grid;gap:10px;border-left:3px solid var(--accent);padding-left:14px}
+.qa .q{font-weight:600;font-size:.92rem}
+.qa .a{font-size:.95rem}
+.qa .a::before{content:"Пациент: ";color:var(--muted)}
+.photos{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.photos figure{margin:0;display:grid;gap:4px}
+.photos canvas{width:100%;height:auto;aspect-ratio:4/3;border-radius:6px;border:1px solid var(--line);display:block;max-width:100%}
+.photos figcaption{font-size:.8rem;color:var(--muted)}
+.note{font-size:.78rem;color:var(--muted);font-style:italic}
+.status{background:var(--paper);border:1px dashed var(--line);border-radius:6px;padding:12px 14px;font-size:.95rem}
+.start-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.pcard{display:grid;grid-template-columns:90px 1fr;gap:14px;align-items:center;text-align:left;background:var(--sheet);color:var(--ink);border:1px solid var(--line);font-weight:400;padding:14px}
+.pcard:hover{border-color:var(--accent)}
+.pcard svg{width:90px;height:90px;border-radius:6px;background:var(--accent-soft)}
+.pcard b{font-family:var(--f-display);font-size:1.1rem;display:block}
+.pcard span{font-size:.85rem;color:var(--muted)}
+label.inp{display:grid;gap:4px;font-size:.85rem;color:var(--muted);max-width:420px}
+label.inp input{font:inherit;color:var(--ink);background:var(--sheet);border:1px solid var(--line);border-radius:6px;padding:9px 12px}
+/* итог */
+.verdict{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center}
+@media (max-width:560px){.verdict{grid-template-columns:minmax(0,1fr)}}
+.stampbox{border:3px double var(--stamp);color:var(--stamp);border-radius:8px;padding:10px 18px;text-align:center;transform:rotate(-4deg);font-family:var(--f-display)}
+.stampbox .g{font-size:1.5rem;font-weight:700;display:block}
+.stampbox .pct{font-family:var(--f-mono);font-size:.9rem}
+.scores{width:100%;border-collapse:collapse;font-size:.9rem;font-variant-numeric:tabular-nums}
+.scores td{padding:6px 4px;border-bottom:1px solid var(--line)}
+.scores td:last-child{text-align:right;font-family:var(--f-mono)}
+.bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;min-width:80px}
+.bar i{display:block;height:100%;background:var(--accent)}
+.rev{display:grid;gap:6px}
+.ritem{display:grid;grid-template-columns:26px minmax(0,1fr);gap:8px;padding:8px 10px;border-radius:6px;font-size:.9rem}
+.ritem.good{background:var(--ok-soft)}
+.ritem.badc{background:var(--bad-soft)}
+.ritem .m{font-family:var(--f-mono);font-weight:600}
+.ritem.good .m{color:var(--ok)} .ritem.badc .m{color:var(--stamp)}
+.ritem .why{color:var(--muted);font-size:.85rem}
+.ritem .tag{font-family:var(--f-mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.05em}
+.trust{display:grid;gap:4px}
+.trust-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.tv{font-family:var(--f-mono);font-size:.8rem}
+.tbar{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.tbar i,.bar i.good,.bar i.mid,.bar i.bad{display:block;height:100%}
+i.good{background:var(--ok)!important} i.mid{background:var(--warn)!important} i.bad{background:var(--stamp)!important}
+@media (prefers-reduced-motion:no-preference){.tbar i{transition:width .4s ease}}
+.zones{display:flex;flex-wrap:wrap;gap:8px}
+.zone{background:var(--sheet);color:var(--accent);border:1px solid var(--accent);font-weight:500;padding:8px 14px;font-size:.9rem}
+.zone.on{background:var(--accent-soft);color:var(--ink);border-color:var(--line);opacity:1}
+.zone.on::before{content:"✓ ";color:var(--ok)}
+.findings{display:grid;gap:6px;background:var(--paper);border:1px dashed var(--line);border-radius:6px;padding:12px 14px;font-size:.95rem}
+.medcard{border-top:4px solid var(--accent)}
+.mc-head{display:grid;gap:4px}
+.mc-row{display:grid;grid-template-columns:200px minmax(0,1fr);gap:4px 16px;padding-top:10px;border-top:1px solid var(--line);font-size:.92rem}
+.mc-row b{font-family:var(--f-display)}
+.mc-row ul{margin:0;padding-left:18px;display:grid;gap:3px}
+@media (max-width:560px){.mc-row{grid-template-columns:minmax(0,1fr)}}
+.pic{background:#fff;border-radius:6px;object-fit:contain;display:block;max-width:100%}
+.patient .pat{width:100%;aspect-ratio:4/5;object-fit:contain;justify-self:center}
+.task{position:relative}
+.stud{float:right;height:130px;width:auto;margin:0 0 6px 12px;background:#fff;border-radius:6px}
+@media (max-width:560px){.stud{height:90px}}
+.disclaimer{border:1px solid var(--stamp);background:var(--bad-soft);color:var(--ink);border-radius:6px;padding:12px 14px;font-size:.92rem}
+.disclaimer b{color:var(--stamp)}
+.intro{display:grid;grid-template-columns:160px minmax(0,1fr);gap:18px;align-items:center}
+.intro .prof{width:160px;height:auto}
+@media (max-width:560px){.intro{grid-template-columns:minmax(0,1fr)}.intro .prof{width:120px}}
+.who-pick{display:flex;flex-wrap:wrap;gap:12px}
+.pcard .pic{width:90px;height:110px;object-fit:contain}
+.whob .pic{width:60px}
+.pcard.on{border-color:var(--accent);background:var(--accent-soft)}
+.hint.warn{color:var(--stamp);font-weight:600}
+.flash{outline:3px solid var(--stamp);outline-offset:3px;border-radius:6px}
+.ack{border-color:var(--stamp)}
+.verdict{grid-template-columns:140px minmax(0,1fr) auto!important}
+.profr{width:140px;height:auto}
+@media (max-width:560px){.verdict{grid-template-columns:minmax(0,1fr)!important}.profr{width:110px}}
+.duo{display:flex;flex-wrap:wrap;gap:14px}
+.duo figure{margin:0;display:grid;gap:4px;font-size:.85rem;color:var(--muted)}
+.duo .pic{height:200px;width:auto}
+footer{font-size:.75rem;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:in .25s ease-out}@keyframes in{from{transform:translateY(4px)}to{transform:none}}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">Тестовый псориаз<small>Тренажёр приёма · дерматовенерология</small></div>
+    <div class="who" id="who"></div>
+  </header>
+  <main id="app"></main>
+  <footer>Учебный тренажёр для студентов. Не является медицинской рекомендацией. Содержание основано на Федеральных клинических рекомендациях РОДВК по ведению больных псориазом (2014); дозировки и схемы намеренно не используются. Иллюстрации схематичные, будут заменены на клинические фото.</footer>
+</div>
+
+<script>
+/* ===================== ДАННЫЕ СЛУЧАЕВ ===================== */
+const CASES = [
+{
+  id:"m", sex:"m", name:"Андрей Сергеевич", age:42, job:"инженер-проектировщик",
+  complaint:"Доктор, у меня на локтях и коленях красные пятна с белыми чешуйками, на голове тоже шелушится. Чешется. Раньше такое бывало, но последние три недели пятен стало заметно больше.",
+  anam:[
+    {t:"Когда впервые появились высыпания и как они менялись со временем?", ok:true, a:"Лет шесть назад, сначала на локтях. Летом почти проходит, зимой хуже.", why:"Давность и сезонность течения — основа анамнеза заболевания."},
+    {t:"Что предшествовало нынешнему обострению?", ok:true, a:"На работе был аврал, сильно нервничал. Ну и по выходным выпивал, бывало.", why:"Стресс и алкоголь — провоцирующие факторы псориаза по рекомендациям."},
+    {t:"Есть ли похожие высыпания у кого-то из родственников?", ok:true, a:"У отца было что-то похожее на коленях.", why:"Наследственная предрасположенность — ключевой фактор при псориазе."},
+    {t:"Какие лекарства вы принимаете постоянно?", ok:true, a:"Полгода назад терапевт назначил таблетки от давления, кажется, бета-блокатор.", why:"Бета-адреноблокаторы относятся к лекарствам, провоцирующим псориаз."},
+    {t:"Беспокоят ли боли, отёк или утренняя скованность в суставах?", ok:true, a:"Нет, суставы не болят.", why:"Нужно исключить псориатический артрит — от этого зависят диагноз и тактика."},
+    {t:"Чем лечились раньше и был ли эффект?", ok:true, a:"Мазал кремом из аптеки, помогало на время.", why:"Предыдущее лечение и его эффект влияют на выбор терапии."},
+    {t:"Делали ли вы прививку от гриппа в этом году?", ok:false, a:"Нет, не делал.", why:"К псориазу не относится — лишний вопрос удлиняет приём."},
+    {t:"Сколько часов в день вы проводите за компьютером?", ok:false, a:"Часов восемь, работа такая.", why:"Не влияет на диагностику и лечение псориаза."},
+    {t:"Есть ли у вас аллергия на шерсть животных?", ok:false, a:"Вроде бы нет.", why:"Для этого случая не информативно."}
+  ],
+  exam:{
+    scrape:"При лёгком поскабливании шелушение усиливается, поверхность похожа на растёртую каплю стеарина. После удаления чешуек появляется влажная тонкая блестящая поверхность. При дальнейшем осторожном поскабливании — точечные, не сливающиеся капельки крови.",
+    zones:{
+      scalp:{key:true, f:"Отдельные бляшки с серебристым шелушением, не выходящие за границу роста волос.", why:"Типичная локализация псориаза.", photo:{kind:"scalp", seed:7, plaques:[[.35,.6,.16],[.7,.55,.12]], scale:"silver"}},
+      elbows:{key:true, f:"На разгибательных поверхностях — розово-красные бляшки с чёткими границами, склонные к слиянию, покрытые серебристо-белыми чешуйками. Вокруг части бляшек — ободок яркой эритемы.", why:"Главная типичная локализация бляшек.", photo:{kind:"skin", seed:3, plaques:[[.45,.5,.26],[.75,.35,.1],[.2,.7,.08]], scale:"silver"}},
+      knees:{key:true, f:"Бляшки такого же вида. В местах свежих расчёсов — новые линейные высыпания.", why:"Типичная локализация; здесь виден феномен Кебнера.", photo:{kind:"skin", seed:11, plaques:[[.5,.45,.22],[.25,.3,.07],[.7,.72,.09],[.82,.25,.05]], scale:"silver", koebner:true}},
+      back:{key:true, f:"Несколько бляшек до 3–4 см с серебристыми чешуйками.", why:"Поясница и крестец — типичная локализация.", photo:{kind:"skin", seed:19, plaques:[[.35,.45,.15],[.65,.55,.12]], scale:"silver"}},
+      nails:{key:true, f:"Множественные точечные углубления на ногтевых пластинках.", why:"Поражение ногтей частое при псориазе.", photo:{kind:"nail", seed:5, pits:28}},
+      joints:{key:true, f:"Суставы кистей не изменены, движения в полном объёме, безболезненны.", why:"Нужно исключить псориатический артрит."},
+      ears:{key:false, f:"Без изменений."},
+      face:{key:false, f:"Без изменений."},
+      palms:{key:false, f:"Без изменений."},
+      mouth:{key:false, f:"Без изменений."}
+    },
+    opts:[
+      {t:"Феномен стеаринового пятна", ok:true, why:"Усиление шелушения при поскабливании — первый феномен псориатической триады."},
+      {t:"Феномен терминальной плёнки", ok:true, why:"Влажная блестящая поверхность после удаления чешуек — второй феномен триады."},
+      {t:"Феномен точечного кровотечения", ok:true, why:"Точечные капельки крови — третий феномен триады."},
+      {t:"Феномен Кебнера", ok:true, why:"Новые высыпания в местах расчёсов — признак прогрессирующей стадии."},
+      {t:"Симптом «напёрстка» на ногтях", ok:true, why:"Точечные углубления на ногтях — частое поражение ногтей при псориазе."},
+      {t:"Сетка Уикхема", ok:false, why:"Характерна для красного плоского лишая, здесь не описана."},
+      {t:"Симптом Никольского", ok:false, why:"Признак пузырных дерматозов (пузырчатки), к псориазу не относится."},
+      {t:"Симптом «яблочного желе»", ok:false, why:"Характерен для туберкулёзной волчанки."}
+    ]
+  },
+  diff:[
+    {t:"Красный плоский лишай", ok:true, why:"Папулёзный дерматоз со сходными бляшками — нужна дифференциальная диагностика."},
+    {t:"Вторичный сифилис (папулёзный сифилид)", ok:true, why:"Папулы с шелушением могут имитировать псориаз — исключается обязательно."},
+    {t:"Розовый лишай Жибера", ok:true, why:"Пятна с шелушением на туловище — входит в круг дифференциальной диагностики."},
+    {t:"Системная красная волчанка", ok:false, why:"Другая группа заболеваний, клиническая картина несопоставима."},
+    {t:"Витилиго", ok:false, why:"Депигментация без воспаления и шелушения — с псориазом не путают."},
+    {t:"Крапивница", ok:false, why:"Волдыри без шелушения, исчезают за часы — не похожа на бляшки псориаза."}
+  ],
+  dx:[
+    {t:"Псориаз обыкновенный (вульгарный), прогрессирующая стадия", ok:true, why:"Типичные бляшки, триада, феномен Кебнера и ободок эритемы указывают на прогрессирующую стадию."},
+    {t:"Псориаз обыкновенный (вульгарный), стационарная стадия", ok:false, why:"Есть новые высыпания и феномен Кебнера — это прогрессирующая стадия."},
+    {t:"Псориатическая эритродермия", ok:false, why:"Эритродермия — поражение более 90% кожи с нарушением общего состояния. Здесь очаги ограничены."},
+    {t:"Псориатический артрит", ok:false, why:"Суставы не беспокоят, признаков артрита нет."},
+    {t:"Красный плоский лишай, типичная форма", ok:false, why:"Псориатическая триада и серебристые чешуйки говорят за псориаз."}
+  ],
+  tx:[
+    {t:"Наружные глюкокортикостероиды короткими прерывистыми курсами", ok:true, why:"Основа наружной терапии при ограниченных формах (уровень доказательности A)."},
+    {t:"Комбинация наружных ГКС с салициловой кислотой", ok:true, why:"При выраженном шелушении повышает эффективность ГКС."},
+    {t:"Синтетические аналоги витамина D3 местно", ok:true, why:"Метод выбора при ограниченных формах вульгарного псориаза."},
+    {t:"Устранить провоцирующие факторы: стресс, алкоголь; обсудить с терапевтом замену бета-блокатора", ok:true, why:"Снижает частоту рецидивов — одна из целей лечения."},
+    {t:"Системные глюкокортикостероиды длительным курсом", ok:false, why:"Ошибка в терапии: может привести к пустулёзному псориазу или эритродермии."},
+    {t:"Системные антибиотики", ok:false, why:"Признаков инфекции нет — показаний нет."},
+    {t:"Генно-инженерные биологические препараты", ok:false, why:"Применяются при тяжёлых формах. Здесь ограниченный процесс."},
+    {t:"Ванны и активное солнце в период обострения", ok:false, why:"В прогрессирующей стадии могут спровоцировать эритродермию."},
+    {t:"Санаторно-курортное лечение сейчас", ok:false, why:"Рекомендуется в стационарной и регрессирующей стадии, а не в прогрессирующей."},
+    {t:"Госпитализация в стационар", ok:false, why:"Показана при тяжёлых и распространённых формах, эритродермии, пустулёзном псориазе."}
+  ]
+},
+{
+  id:"f", sex:"f", name:"Ольга Викторовна", age:31, job:"бухгалтер",
+  complaint:"Голова сильно чешется и шелушится, перхоть какая-то жёлтая, корками. На лбу у волос покраснение и за ушами тоже. Шампуни от перхоти не помогают.",
+  anam:[
+    {t:"Когда это началось и как протекало?", ok:true, a:"Около года назад. То лучше, то хуже, но полностью не проходит.", why:"Давность и характер течения — основа анамнеза."},
+    {t:"Что предшествовало ухудшению?", ok:true, a:"Зимой болела ангиной, а потом годовой отчёт, нервы.", why:"Стрептококковые инфекции и стресс — провоцирующие факторы."},
+    {t:"Есть ли похожие проблемы у родственников?", ok:true, a:"У мамы псориаз на локтях.", why:"Наследственная предрасположенность — важный аргумент в пользу псориаза."},
+    {t:"Есть ли высыпания на других участках тела? Изменились ли ногти?", ok:true, a:"На локте маленькое пятнышко шелушится. На ногтях какие-то точки, думала, от лака.", why:"Очаги вне головы и поражение ногтей помогают отличить псориаз от себорейного дерматита."},
+    {t:"Принимаете ли вы лекарства, в том числе гормональные контрацептивы?", ok:true, a:"Нет, ничего не принимаю.", why:"Ряд лекарств и гормональные нарушения провоцируют обострения и пустулёзные формы."},
+    {t:"Чем лечились и был ли эффект?", ok:true, a:"Шампуни от перхоти, противогрибковые — почти без эффекта.", why:"Отсутствие эффекта от противогрибковых средств — значимая деталь."},
+    {t:"Сколько чашек кофе вы пьёте в день?", ok:false, a:"Две-три.", why:"Не влияет на диагностику и лечение."},
+    {t:"Были ли вы в отпуске на море в этом году?", ok:false, a:"Да, в августе.", why:"Для этого случая не информативно."},
+    {t:"Занимаетесь ли вы спортом?", ok:false, a:"Хожу на йогу раз в неделю.", why:"Лишний вопрос, удлиняет приём."}
+  ],
+  exam:{
+    scrape:"При поскабливании бляшки на локте шелушение усиливается (как растёртая капля стеарина), после удаления чешуек — влажная блестящая плёнка, затем точечные капельки крови.",
+    zones:{
+      scalp:{key:true, f:"Бляшки с чёткими границами, покрытые желтоватыми чешуйками; высыпания переходят на кожу лба полосой вдоль линии роста волос. Со слов пациентки, новых очагов за последний месяц нет, бляшки не увеличиваются.", why:"Основной очаг поражения.", photo:{kind:"corona", seed:21, scale:"yellow"}},
+      ears:{key:true, f:"Эритема с шелушением желтоватыми чешуйками.", why:"Себорейная зона — частая локализация при себорейном псориазе.", photo:{kind:"ear", seed:8, scale:"yellow"}},
+      elbows:{key:true, f:"На разгибательной поверхности левого локтя — одиночная бляшка с серебристыми чешуйками.", why:"Типичная локализация; бляшка на локте — важный аргумент против себорейного дерматита.", photo:{kind:"skin", seed:15, plaques:[[.5,.5,.14]], scale:"silver"}},
+      knees:{key:true, f:"Без изменений.", why:"Типичную локализацию нужно проверить, даже если жалоб нет."},
+      nails:{key:true, f:"Точечные углубления на нескольких ногтевых пластинках.", why:"Поражение ногтей помогает отличить псориаз от себорейного дерматита.", photo:{kind:"nail", seed:9, pits:14}},
+      back:{key:false, f:"Без изменений."},
+      joints:{key:false, f:"Без изменений, движения безболезненны."},
+      face:{key:false, f:"Кроме полосы у линии роста волос — без изменений."},
+      palms:{key:false, f:"Без изменений."},
+      mouth:{key:false, f:"Без изменений."}
+    },
+    opts:[
+      {t:"Феномен стеаринового пятна", ok:true, why:"Выявлен при поскабливании бляшки на локте."},
+      {t:"Феномен терминальной плёнки", ok:true, why:"Второй феномен псориатической триады."},
+      {t:"Феномен точечного кровотечения", ok:true, why:"Третий феномен триады."},
+      {t:"«Псориатическая корона»", ok:true, why:"Переход высыпаний с волосистой части головы на кожу лба — признак себорейного псориаза."},
+      {t:"Симптом «напёрстка» на ногтях", ok:true, why:"Точечные углубления на ногтях."},
+      {t:"Феномен Кебнера", ok:false, why:"Новых высыпаний нет — процесс в стационарной стадии."},
+      {t:"Сетка Уикхема", ok:false, why:"Признак красного плоского лишая."},
+      {t:"Симптом Никольского", ok:false, why:"Признак пузырных дерматозов."}
+    ]
+  },
+  diff:[
+    {t:"Себорейный дерматит", ok:true, why:"Главный «двойник» псориаза волосистой части головы."},
+    {t:"Себорейная экзема", ok:true, why:"Сходная локализация и шелушение — обязательна дифференциальная диагностика."},
+    {t:"Системная красная волчанка", ok:false, why:"Другая группа заболеваний, клинически несопоставима."},
+    {t:"Витилиго", ok:false, why:"Нет воспаления и шелушения."},
+    {t:"Чесотка", ok:false, why:"Другая локализация и элементы, к этой картине не относится."}
+  ],
+  dx:[
+    {t:"Псориаз себорейный (волосистой части головы), стационарная стадия", ok:true, why:"Себорейная локализация, «корона», бляшка на локте, ногти и триада. Новых элементов нет — стационарная стадия."},
+    {t:"Себорейный дерматит волосистой части головы", ok:false, why:"Триада, «корона», бляшка на локте и ногти говорят за псориаз."},
+    {t:"Псориаз себорейный, прогрессирующая стадия", ok:false, why:"Новых высыпаний и феномена Кебнера нет — стадия стационарная."},
+    {t:"Каплевидный псориаз", ok:false, why:"Каплевидный псориаз — множественные мелкие ярко-красные папулы по телу, чаще у детей и подростков."},
+    {t:"Микоз волосистой части головы", ok:false, why:"Противогрибковое лечение без эффекта, картина типична для псориаза."}
+  ],
+  tx:[
+    {t:"Наружные ГКС в форме лосьона для волосистой части головы, короткими курсами", ok:true, why:"ГКС применяются в форме мазей, кремов или лосьонов — по локализации."},
+    {t:"Средства с активированным цинк пиритионом", ok:true, why:"Входят в наружную терапию ограниченных форм."},
+    {t:"Салициловая кислота для снятия чешуек, в том числе в комбинации с ГКС", ok:true, why:"При выраженном шелушении повышает эффективность ГКС."},
+    {t:"Синтетические аналоги витамина D3 местно", ok:true, why:"Метод выбора при ограниченных формах."},
+    {t:"Санаторно-курортное лечение", ok:true, why:"Рекомендуется в стационарной стадии и в ремиссии."},
+    {t:"Сильные фторированные ГКС на лоб и заушные складки длительно", ok:false, why:"Кожа лица и складок особенно чувствительна: атрофия, розацеа, периоральный дерматит."},
+    {t:"Системные глюкокортикостероиды", ok:false, why:"Ошибка в терапии: риск генерализации, пустулёзного псориаза, эритродермии."},
+    {t:"Курс системных антибиотиков после перенесённой ангины", ok:false, why:"Активной инфекции сейчас нет — показаний нет."},
+    {t:"Генно-инженерные биологические препараты", ok:false, why:"Для тяжёлых форм. Здесь ограниченный процесс."}
+  ]
+}];
+
+const STAGES=[
+  {k:"anam", n:"Жалобы и анамнез"},
+  {k:"exam", n:"Осмотр"},
+  {k:"diff", n:"Дифдиагностика"},
+  {k:"dx",   n:"Диагноз"},
+  {k:"tx",   n:"План лечения"},
+  {k:"res",  n:"Заключение"}
+];
+
+const ZONES=[
+  {id:"scalp", n:"Волосистая часть головы"},
+  {id:"face", n:"Лицо"},
+  {id:"ears", n:"Заушные складки"},
+  {id:"mouth", n:"Слизистая полости рта"},
+  {id:"elbows", n:"Локтевые суставы"},
+  {id:"knees", n:"Коленные суставы"},
+  {id:"back", n:"Поясница и крестец"},
+  {id:"palms", n:"Ладони и подошвы"},
+  {id:"nails", n:"Ногти"},
+  {id:"joints", n:"Суставы кистей (пальпация)"}
+];
+
+/* Первая фраза врача: влияет только на доверие пациента */
+const GREET=[
+  {t:"«Здравствуйте! Я ваш врач-дерматолог. Как я могу к вам обращаться? Расскажите, что вас беспокоит».", d:15, r:"Пациент расслабился и охотно рассказывает."},
+  {t:"«Добрый день. Садитесь. Что у вас?»", d:0, r:"Пациент держится настороженно."},
+  {t:"«Так, быстро: что беспокоит? Раздевайтесь, у меня очередь».", d:-25, r:"Пациент смущён и отвечает неохотно."}
+];
+const TRUST_START=60, TRUST_ASK_OK=3, TRUST_ASK_BAD=-10, TRUST_EVASIVE=40;
+
+/* ===================== СОСТОЯНИЕ ===================== */
+let S = {who:null, ack:false, student:"", caseId:null, stage:-1, greet:null, asked:false, scraped:false, examined:[], answers:[], trust:TRUST_START, sel:{}, order:{}, done:[]};
+
+function shuffle(n,seed){const a=[...Array(n).keys()];let s=seed||Date.now();for(let i=n-1;i>0;i--){s=(s*9301+49297)%233280;const j=Math.floor(s/233280*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+const C=()=>CASES.find(c=>c.id===S.caseId);
+function optsFor(k){const c=C();return k==="exam"?c.exam.opts:c[k];}
+
+/* ===================== АВАТАРЫ ===================== */
+function avatar(sex,mood){
+  const skin="#f1c7a5", shade="#e0ad8a";
+  const mq=mood==="bad"?"q11 -6 22 0":mood==="mid"?"q11 1 22 0":"q11 6 22 0", fq=mood==="bad"?"q10 -6 20 0":mood==="mid"?"q10 1 20 0":"q10 6 20 0";
+  if(sex==="m") return `<svg viewBox="0 0 200 200" role="img" aria-label="Пациент, мужчина">
+    <rect width="200" height="200" fill="none"/>
+    <path d="M30 200c6-40 36-58 70-58s64 18 70 58z" fill="#3e6a7e"/>
+    <path d="M86 132h28v22c0 8-28 8-28 0z" fill="${shade}"/>
+    <path d="M78 150l22 18 22-18" fill="none" stroke="#e8eef0" stroke-width="5"/>
+    <ellipse cx="100" cy="92" rx="38" ry="44" fill="${skin}"/>
+    <path d="M62 84c-2-30 18-46 40-46 24 0 40 14 38 44-6-12-14-20-30-22-12 8-30 10-48 24z" fill="#4a3426"/>
+    <ellipse cx="62" cy="96" rx="6" ry="10" fill="${shade}"/><ellipse cx="138" cy="96" rx="6" ry="10" fill="${shade}"/>
+    <circle cx="86" cy="94" r="3.5" fill="#2b2b2b"/><circle cx="114" cy="94" r="3.5" fill="#2b2b2b"/>
+    <path d="M79 84q7-4 14 0M107 84q7-4 14 0" stroke="#4a3426" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M100 98v12h-5" stroke="${shade}" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M89 ${mood==="bad"?122:118}${mq}" stroke="#a0574a" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M70 112c6 20 18 30 30 30s24-10 30-30c-4 16-16 22-30 22s-26-6-30-22z" fill="#5a4334" opacity=".35"/>
+  </svg>`;
+  return `<svg viewBox="0 0 200 200" role="img" aria-label="Пациентка, женщина">
+    <path d="M52 70c0-30 22-44 48-44s48 14 48 44v70c-10 8-86 8-96 0z" fill="#7a4a2e"/>
+    <path d="M34 200c6-38 34-56 66-56s60 18 66 56z" fill="#b5577a"/>
+    <path d="M88 130h24v20c0 8-24 8-24 0z" fill="${shade}"/>
+    <ellipse cx="100" cy="92" rx="35" ry="42" fill="${skin}"/>
+    <path d="M64 86c2-28 20-42 40-40 20 2 34 18 32 40-10-14-26-24-48-22-8 8-14 14-24 22z" fill="#7a4a2e"/>
+    <circle cx="87" cy="95" r="3.5" fill="#2b2b2b"/><circle cx="113" cy="95" r="3.5" fill="#2b2b2b"/>
+    <path d="M81 88q6-3 12 0M107 88q6-3 12 0" stroke="#5a3520" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path d="M100 99v10h-4" stroke="${shade}" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M90 ${mood==="bad"?121:117}${fq}" stroke="#c0546a" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+    <path d="M72 62q28-6 56 0" stroke="#d65a5a" stroke-width="4" fill="none" opacity=".55" stroke-dasharray="3 4"/>
+  </svg>`;
+}
+
+/* ===================== ИЛЛЮСТРАЦИИ (canvas) ===================== */
+function rng(seed){let s=seed*9973+7;return()=>{s=(s*16807)%2147483647;return(s-1)/2147483646;};}
+function blob(ctx,cx,cy,r,R){ctx.beginPath();const n=40,ph=[R()*6,R()*6,R()*6];for(let i=0;i<=n;i++){const a=i/n*Math.PI*2;const rr=r*(1+.12*Math.sin(3*a+ph[0])+.08*Math.sin(5*a+ph[1])+.05*Math.sin(7*a+ph[2]));const x=cx+Math.cos(a)*rr*1.15,y=cy+Math.sin(a)*rr;i?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.closePath();}
+function skinBase(ctx,W,H,R,tone){
+  const g=ctx.createLinearGradient(0,0,W,H);g.addColorStop(0,tone[0]);g.addColorStop(1,tone[1]);ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  for(let i=0;i<2600;i++){ctx.fillStyle=`rgba(${R()<.5?"120,70,50":"255,240,230"},${R()*.06})`;ctx.fillRect(R()*W,R()*H,1.5,1.5);}
+  ctx.strokeStyle="rgba(140,90,70,.08)";ctx.lineWidth=1;for(let i=0;i<60;i++){ctx.beginPath();const x=R()*W,y=R()*H;ctx.moveTo(x,y);ctx.lineTo(x+R()*30-15,y+R()*8-4);ctx.stroke();}
+}
+function plaque(ctx,x,y,r,R,scale){
+  ctx.save();blob(ctx,x,y,r*1.12,R);ctx.fillStyle="rgba(214,70,72,.55)";ctx.fill();ctx.restore();
+  ctx.save();blob(ctx,x,y,r,R);const g=ctx.createRadialGradient(x,y,r*.1,x,y,r*1.1);g.addColorStop(0,"#c9605a");g.addColorStop(1,"#d9706a");ctx.fillStyle=g;ctx.fill();ctx.clip();
+  const col=scale==="yellow"?["236,214,160","220,196,130"]:["245,246,248","220,226,232"];
+  for(let i=0;i<r*r*.35;i++){const a=R()*6.283,d=Math.sqrt(R())*r*1.05;const px=x+Math.cos(a)*d*1.15,py=y+Math.sin(a)*d;ctx.fillStyle=`rgba(${col[R()<.5?0:1]},${.35+R()*.55})`;ctx.beginPath();ctx.ellipse(px,py,1+R()*4,1+R()*2.5,R()*3,0,7);ctx.fill();}
+  ctx.restore();
+}
+function hair(ctx,W,H,R,yTop,yBot,color){ctx.lineCap="round";for(let i=0;i<900;i++){const x=R()*W,y=yTop+R()*(yBot-yTop);ctx.strokeStyle=color+(0.35+R()*.5)+")";ctx.lineWidth=.8+R()*1.2;ctx.beginPath();ctx.moveTo(x,y);ctx.quadraticCurveTo(x+R()*14-7,y+12,x+R()*20-10,y+28+R()*20);ctx.stroke();}}
+function drawPhoto(cv,p){
+  const W=cv.width=480,H=cv.height=360,ctx=cv.getContext("2d"),R=rng(p.seed);
+  const tone=["#e9bfa0","#d8a682"];
+  if(p.kind==="nail"){
+    ctx.fillStyle="#cfd8dc";ctx.fillRect(0,0,W,H);
+    for(let f=0;f<3;f++){const fx=70+f*140,fy=40;ctx.fillStyle=tone[f%2];ctx.beginPath();ctx.roundRect(fx,fy,110,300,50);ctx.fill();
+      ctx.fillStyle="#f2d6cf";ctx.beginPath();ctx.roundRect(fx+15,fy+20,80,130,[36,36,16,16]);ctx.fill();
+      ctx.fillStyle="rgba(255,255,255,.35)";ctx.beginPath();ctx.ellipse(fx+55,fy+140,30,10,0,0,7);ctx.fill();
+      for(let i=0;i<p.pits/3;i++){ctx.fillStyle="rgba(120,80,70,.55)";ctx.beginPath();ctx.arc(fx+25+R()*60,fy+30+R()*105,1.6+R()*1.6,0,7);ctx.fill();}
+      if(f===1){ctx.fillStyle="rgba(200,140,90,.45)";ctx.beginPath();ctx.ellipse(fx+60,fy+120,12,8,0,0,7);ctx.fill();}}
+    return;
+  }
+  skinBase(ctx,W,H,R,tone);
+  if(p.kind==="skin"){
+    ctx.fillStyle="rgba(150,95,70,.12)";ctx.beginPath();ctx.ellipse(W*.5,H*.5,W*.38,H*.3,-.2,0,7);ctx.fill();
+    p.plaques.forEach(([x,y,r])=>plaque(ctx,x*W,y*H,r*W*.55,R,p.scale));
+    if(p.koebner){ctx.strokeStyle="rgba(210,80,80,.8)";ctx.lineWidth=5;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(W*.12,H*.88);ctx.lineTo(W*.3,H*.72);ctx.stroke();ctx.beginPath();ctx.moveTo(W*.16,H*.94);ctx.lineTo(W*.34,H*.78);ctx.stroke();}
+  }
+  if(p.kind==="scalp"){
+    p.plaques.forEach(([x,y,r])=>plaque(ctx,x*W,y*H,r*W*.55,R,p.scale));
+    hair(ctx,W,H,R,-30,H*.95,"rgba(60,40,30,");
+  }
+  if(p.kind==="corona"){
+    ctx.save();ctx.beginPath();ctx.moveTo(0,H*.42);ctx.bezierCurveTo(W*.3,H*.3,W*.7,H*.3,W,H*.42);ctx.lineTo(W,0);ctx.lineTo(0,0);ctx.closePath();ctx.clip();
+    for(let i=0;i<14;i++)plaque(ctx,R()*W,H*.15+R()*H*.25,22+R()*20,R,"yellow");
+    hair(ctx,W,H,R,-30,H*.4,"rgba(110,70,40,");ctx.restore();
+    ctx.save();ctx.beginPath();ctx.moveTo(0,H*.42);ctx.bezierCurveTo(W*.3,H*.3,W*.7,H*.3,W,H*.42);ctx.lineTo(W,H*.56);ctx.bezierCurveTo(W*.7,H*.46,W*.3,H*.46,0,H*.56);ctx.closePath();
+    ctx.fillStyle="rgba(205,85,80,.6)";ctx.fill();ctx.clip();
+    for(let i=0;i<500;i++){ctx.fillStyle=`rgba(236,214,160,${.3+R()*.5})`;ctx.beginPath();ctx.ellipse(R()*W,H*.35+R()*H*.2,1+R()*3,1+R()*2,R()*3,0,7);ctx.fill();}ctx.restore();
+    ctx.strokeStyle="rgba(110,70,50,.55)";ctx.lineWidth=4;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(W*.25,H*.74);ctx.quadraticCurveTo(W*.35,H*.7,W*.43,H*.74);ctx.moveTo(W*.57,H*.74);ctx.quadraticCurveTo(W*.65,H*.7,W*.75,H*.74);ctx.stroke();
+  }
+  if(p.kind==="ear"){
+    hair(ctx,W,H,R,-30,H*.35,"rgba(110,70,40,");
+    ctx.fillStyle="rgba(205,85,80,.55)";ctx.beginPath();ctx.ellipse(W*.42,H*.58,70,120,.1,0,7);ctx.fill();
+    for(let i=0;i<300;i++){ctx.fillStyle=`rgba(236,214,160,${.3+R()*.5})`;ctx.beginPath();ctx.ellipse(W*.42+(R()-.5)*120,H*.58+(R()-.5)*220,1+R()*3,1+R()*2,R()*3,0,7);ctx.fill();}
+    ctx.fillStyle="#e2b292";ctx.strokeStyle="rgba(140,90,70,.5)";ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(W*.6,H*.55,62,110,.12,0,7);ctx.fill();ctx.stroke();
+    ctx.beginPath();ctx.ellipse(W*.61,H*.53,38,78,.12,0,7);ctx.stroke();
+  }
+}
+
+/* ===================== РЕНДЕР ===================== */
+const app=document.getElementById("app");
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+
+function render(){
+  document.getElementById("who").textContent=S.student?("Студент: "+S.student):"";
+  if(S.stage<0) return renderStart();
+  if(STAGES[S.stage].k==="res") return renderResult();
+  renderStage();
+}
+
+function mood(){return S.trust>=70?"good":S.trust>=TRUST_EVASIVE?"mid":"bad";}
+function trustWord(){return S.trust>=70?"доверяет":S.trust>=TRUST_EVASIVE?"насторожен":"не доверяет";}
+
+const IMG="assets/";
+function patImg(){const c=C(),sx=c.sex;
+  if(STAGES[S.stage]&&STAGES[S.stage].k==="res") return IMG+`pat-${sx}-${S.trust>=70?(sx==="f"?"happy":"good"):mood()}.webp`;
+  if(STAGES[S.stage]&&STAGES[S.stage].k==="anam"&&S.asked) return IMG+`pat-${sx}-talk.webp`;
+  return IMG+`pat-${sx}-${mood()}.webp`;}
+function studImg(pose){return IMG+`stud-${S.who||"f"}-${pose}.webp`;}
+const DISCLAIMER=`<div class="disclaimer" role="note"><b>Тестовая программа.</b> Не прошла глобальный научный анализ и используется только в научных и тестовых целях. Все данные и результаты необходимо проверять и согласовывать с профессиональным врачом.</div>`;
+
+function renderStart(){
+  const ready=S.ack&&S.who;
+  app.innerHTML=`<div class="sheet" style="gap:18px">
+    ${DISCLAIMER}
+    <label class="opt ack ${S.ack?"sel":""}"><input type="checkbox" id="ack" ${S.ack?"checked":""}><span>Понимаю: это тестовая программа, результаты нужно проверять со специалистом.</span></label>
+    <div class="intro">
+      <img class="pic prof" src="${IMG}professor.webp" alt="Профессор">
+      <div style="display:grid;gap:10px;min-width:0">
+        <span class="eyebrow">Зачётный приём</span>
+        <h2>Вы — врач-дерматовенеролог на приёме</h2>
+        <div class="bubble">Коллега, к вам пришёл пациент. Соберите анамнез, проведите осмотр, выберите заболевания для дифференциальной диагностики, поставьте диагноз и составьте план лечения. Следите за доверием пациента: от него зависит, насколько откровенно он отвечает. Оценку я поставлю в конце, по ходу подсказок не будет.</div>
+      </div>
+    </div>
+    <div style="display:grid;gap:8px"><h3>Кто вы?</h3>
+      <div class="who-pick">${["f","m"].map(w=>`<button class="pcard whob ${S.who===w?"on":""}" data-who="${w}"><img class="pic" src="${IMG}stud-${w}-neutral.webp" alt=""><div><b>${w==="f"?"Студентка":"Студент"}</b><span>${S.who===w?"выбрано":"выбрать"}</span></div></button>`).join("")}</div></div>
+    <label class="inp" for="stname">Фамилия и имя (для отчёта)
+      <input id="stname" type="text" placeholder="Например, Иванова Мария" value="${esc(S.student)}"></label>
+    <div style="display:grid;gap:8px"><h3>Выберите пациента</h3>
+    <p class="hint" id="need" aria-live="polite"></p>
+    <div class="start-cards">
+      ${CASES.map(c=>`<button class="pcard" data-case="${c.id}"><img class="pic" src="${IMG}pat-${c.sex}-good.webp" alt=""><div><b>${c.name}</b><span>${c.age} лет · ${c.job}${S.done.includes(c.id)?" · пройден":""}</span></div></button>`).join("")}
+    </div></div>
+  </div>`;
+  const keep=()=>{S.student=document.getElementById("stname").value.trim();};
+  document.getElementById("ack").onchange=e=>{keep();S.ack=e.target.checked;render();};
+  app.querySelectorAll("[data-who]").forEach(b=>b.onclick=()=>{keep();S.who=b.dataset.who;render();});
+  app.querySelectorAll("[data-case]").forEach(b=>b.onclick=()=>{
+    keep();
+    if(!S.ack||!S.who){
+      const miss=[];if(!S.ack)miss.push("поставьте галочку «Понимаю» вверху");if(!S.who)miss.push("выберите, кто вы — студентка или студент");
+      const n=document.getElementById("need");n.textContent="Чтобы начать: "+miss.join(" и ")+".";n.classList.add("warn");
+      const t=!S.ack?document.getElementById("ack").closest(".opt"):document.querySelector(".who-pick");
+      t.classList.add("flash");t.scrollIntoView({behavior:"smooth",block:"center"});setTimeout(()=>t.classList.remove("flash"),1600);
+      return;
+    }
+    Object.assign(S,{caseId:b.dataset.case,stage:0,greet:null,asked:false,scraped:false,examined:[],answers:[],trust:TRUST_START,sel:{},order:{}});
+    const seed=Date.now()%100000;["anam","exam","diff","dx","tx"].forEach((k,i)=>S.order[k]=shuffle(optsFor(k).length,seed+i*31));
+    S.order.greet=shuffle(GREET.length,seed+7);
+    render();window.scrollTo(0,0);
+  });
+}
+
+function stepsBar(){return `<ol class="steps">${STAGES.map((s,i)=>`<li class="${i===S.stage?"on":i<S.stage?"done":""}">${s.n}</li>`).join("")}</ol>`;}
+
+function trustMeter(){return `<div class="trust"><div class="trust-row"><span class="eyebrow">Доверие пациента</span><span class="tv">${S.trust}% · ${trustWord()}</span></div><div class="tbar"><i class="${mood()}" style="width:${S.trust}%"></i></div></div>`;}
+
+function patientCard(){const c=C();return `<aside class="sheet patient">
+  <img class="pic pat" src="${patImg()}" alt="${c.name}">
+  ${trustMeter()}
+  <dl class="field"><dt>Пациент</dt><dd>${c.name}</dd><dt>Возраст</dt><dd>${c.age} лет</dd><dt>Работа</dt><dd>${c.job}</dd></dl>
+  <div><span class="eyebrow">Жалобы</span><div class="bubble">${c.complaint}</div></div>
+</aside>`;}
+
+function optList(k,multi,locked){
+  const list=optsFor(k),sel=S.sel[k]||(S.sel[k]=[]);
+  return `<div class="opts" role="${multi?"group":"radiogroup"}">${S.order[k].map(i=>{const on=sel.includes(i);
+    return `<label class="opt ${on?"sel":""} ${locked?"locked":""}"><input type="${multi?"checkbox":"radio"}" name="o_${k}" id="o_${k}_${i}" data-i="${i}" ${on?"checked":""} ${locked?"disabled":""}><span>${list[i].t}</span></label>`;}).join("")}</div>`;
+}
+function bindOpts(k,multi,after){
+  app.querySelectorAll(`input[name="o_${k}"]`).forEach(inp=>inp.onchange=()=>{
+    const i=+inp.dataset.i;let sel=S.sel[k];
+    if(multi){sel=inp.checked?[...sel,i]:sel.filter(x=>x!==i);}else sel=[i];
+    S.sel[k]=sel;app.querySelectorAll(`input[name="o_${k}"]`).forEach(x=>x.closest(".opt").classList.toggle("sel",x.checked));after&&after();
+  });
+}
+
+/* задать вопросы: доверие меняется по ходу, при низком доверии ответы уклончивые */
+function askQuestions(){
+  const c=C();S.answers=[];
+  S.order.anam.filter(i=>S.sel.anam.includes(i)).forEach(i=>{
+    const q=c.anam[i];let a=q.a,evasive=false;
+    if(q.ok && S.trust<TRUST_EVASIVE){a="Ну… не знаю, доктор. Это обязательно рассказывать?";evasive=true;}
+    S.trust=Math.max(0,Math.min(100,S.trust+(q.ok?TRUST_ASK_OK:TRUST_ASK_BAD)));
+    S.answers.push({q:q.t,a,evasive,ok:q.ok});
+  });
+  S.asked=true;
+}
+
+function renderStage(){
+  const st=STAGES[S.stage],c=C();let body="";
+  if(st.k==="anam"){
+    if(S.greet===null){
+      body=`<span class="eyebrow">Этап 1 · Начало приёма</span><h2>Пациент вошёл в кабинет. С чего вы начнёте?</h2>
+        <div class="opts">${S.order.greet.map(i=>`<label class="opt"><input type="radio" name="greet" id="g_${i}" data-i="${i}"><span>${GREET[i].t}</span></label>`).join("")}</div>
+        <div class="btns"><button id="gok" disabled>Начать приём</button></div>`;
+    } else {
+      body=`<span class="eyebrow">Этап 1 · Анамнез</span>
+        <div class="status">${GREET[S.greet].r}</div>
+        <h2>Какие вопросы вы зададите пациенту?</h2>
+        <p class="hint">Соберите анамнез коротко и ёмко: выберите только те вопросы, которые нужны для диагноза и лечения. Лишние вопросы снижают доверие.</p>
+        ${optList("anam",true,S.asked)}
+        ${S.asked?`<div class="qa">${S.answers.map(x=>`<div><div class="q">— ${x.q}</div><div class="a">${x.a}</div></div>`).join("")}</div>`:""}
+        <div class="btns">${S.asked?`<button id="next">Перейти к осмотру</button>`:`<button id="ask" ${S.sel.anam&&S.sel.anam.length?"":"disabled"}>Задать выбранные вопросы</button>`}</div>`;
+    }
+  }
+  if(st.k==="exam"){
+    const ex=S.examined, hasPlaque=ex.some(z=>c.exam.zones[z]&&c.exam.zones[z].photo&&c.exam.zones[z].photo.kind!=="nail");
+    const photoZ=ex.filter(z=>c.exam.zones[z].photo);
+    body=`<span class="eyebrow">Этап 2 · Осмотр</span><h2>Что вы осмотрите?</h2>
+      <p class="hint">Нажимайте на зоны, чтобы осмотреть их. Пропущенные важные зоны снижают оценку.</p>
+      <div class="zones">${ZONES.map(z=>`<button class="zone ${ex.includes(z.id)?"on":""}" data-z="${z.id}" ${ex.includes(z.id)?"disabled":""}>${z.n}</button>`).join("")}</div>
+      ${photoZ.length?`<div class="photos">${photoZ.map(z=>`<figure><canvas id="ph_${z}" width="480" height="360" aria-label="${zoneName(z)}"></canvas><figcaption>${zoneName(z)}</figcaption></figure>`).join("")}</div><p class="note">Схематичные иллюстрации — в рабочей версии будут клинические фото.</p>`:""}
+      ${ex.length?`<div class="findings">${ex.map(z=>`<div><b>${zoneName(z)}:</b> ${c.exam.zones[z].f}</div>`).join("")}</div>`:""}
+      ${S.scraped?`<div class="status"><b>Результат поскабливания:</b> ${c.exam.scrape}</div>`:hasPlaque?`<div class="btns"><button class="ghost" id="scrape">Провести поскабливание бляшки</button></div>`:""}
+      ${ex.length?`<h3>Какие симптомы и феномены вы выявили?</h3>${optList("exam",true,false)}`:""}
+      <div class="btns"><button id="next" ${ex.length?"":"disabled"}>Перейти к дифдиагностике</button></div>`;
+  }
+  if(st.k==="diff"){
+    body=`<span class="eyebrow">Этап 3 · Дифференциальная диагностика</span><h2>С какими заболеваниями нужно провести дифференциальную диагностику?</h2>
+      <p class="hint">Отметьте все подходящие варианты.</p>${optList("diff",true,false)}
+      <div class="btns"><button id="next">Перейти к диагнозу</button></div>`;
+  }
+  if(st.k==="dx"){
+    body=`<span class="eyebrow">Этап 4 · Диагноз</span><h2>Сформулируйте диагноз</h2>
+      <p class="hint">Выберите одну формулировку.</p>${optList("dx",false,false)}
+      <div class="btns"><button id="next" ${S.sel.dx&&S.sel.dx.length?"":"disabled"}>Перейти к плану лечения</button></div>`;
+  }
+  if(st.k==="tx"){
+    body=`<span class="eyebrow">Этап 5 · План лечения</span><h2>Составьте план лечения</h2>
+      <p class="hint">Без препаратов и дозировок — только методы и тактика. Отметьте всё, что войдёт в план.</p>${optList("tx",true,false)}
+      <div class="btns"><button id="next">Сдать профессору</button></div>`;
+  }
+  app.innerHTML=`<div class="wrap" style="max-width:none">${stepsBar()}<div class="grid">${patientCard()}<section class="sheet task"><img class="stud" src="${studImg(S.stage>=2?"think":"neutral")}" alt="Вы">${body}</section></div></div>`;
+  if(st.k==="exam") S.examined.filter(z=>c.exam.zones[z].photo).forEach(z=>drawPhoto(document.getElementById("ph_"+z),c.exam.zones[z].photo));
+  if(st.k==="anam"&&S.greet===null){
+    let g=null;app.querySelectorAll('input[name="greet"]').forEach(inp=>inp.onchange=()=>{g=+inp.dataset.i;app.querySelectorAll('input[name="greet"]').forEach(x=>x.closest(".opt").classList.toggle("sel",x.checked));document.getElementById("gok").disabled=false;});
+    document.getElementById("gok").onclick=()=>{S.greet=g;S.trust=Math.max(0,Math.min(100,S.trust+GREET[g].d));render();};
+    return;
+  }
+  const multi=st.k!=="dx";
+  if(!(st.k==="anam"&&S.asked)&&!(st.k==="exam"&&!S.examined.length)) bindOpts(st.k,multi,()=>{
+    const a=document.getElementById("ask");if(a)a.disabled=!S.sel.anam.length;
+    if(st.k==="dx")document.getElementById("next").disabled=!S.sel.dx.length;
+  });
+  app.querySelectorAll("[data-z]").forEach(b=>b.onclick=()=>{S.examined.push(b.dataset.z);const y=window.scrollY;render();window.scrollTo(0,y);});
+  const ask=document.getElementById("ask");if(ask)ask.onclick=()=>{askQuestions();render();};
+  const sc=document.getElementById("scrape");if(sc)sc.onclick=()=>{const y=window.scrollY;S.scraped=true;render();window.scrollTo(0,y);};
+  const nx=document.getElementById("next");if(nx)nx.onclick=()=>{S.stage++;if(STAGES[S.stage].k==="res"&&!S.done.includes(S.caseId))S.done.push(S.caseId);render();window.scrollTo(0,0);};
+}
+function zoneName(id){return ZONES.find(z=>z.id===id).n;}
+
+/* ===================== ОЦЕНКА ===================== */
+function zoneScore(){const zs=C().exam.zones,key=Object.keys(zs).filter(z=>zs[z].key);return key.filter(z=>S.examined.includes(z)).length/key.length;}
+function stageScore(k){
+  const list=optsFor(k),sel=S.sel[k]||[];
+  if(k==="dx") return sel.length&&list[sel[0]].ok?1:0;
+  let good=0;list.forEach((o,i)=>{if(sel.includes(i)===o.ok)good++;});
+  const s=good/list.length;
+  return k==="exam"?(s+zoneScore())/2:s;
+}
+function grade(p){if(p>=90)return["Отлично","5"];if(p>=75)return["Хорошо","4"];if(p>=60)return["Удовлетворительно","3"];return["Неудовлетворительно","2"];}
+function profComment(sc){
+  const names={anam:"сбор анамнеза",exam:"осмотр",diff:"дифференциальную диагностику",dx:"формулировку диагноза",tx:"план лечения"};
+  const weak=Object.keys(sc).filter(k=>sc[k]<.75).map(k=>names[k]);
+  let t=!weak.length?"Приём проведён грамотно. Обсудите с преподавателем, почему каждая «ловушка» была ловушкой.":"Повторите "+weak.join(", ")+". Разберите отмеченные ошибки с преподавателем.";
+  if(S.trust<TRUST_EVASIVE) t+=" Пациент вам не доверял и скрыл часть важной информации — поработайте над началом приёма и лишними вопросами.";
+  else if(S.trust<70) t+=" Пациент держался настороженно — обратите внимание на коммуникацию.";
+  return t;
+}
+function medRecord(){
+  const c=C(),sel=k=>(S.sel[k]||[]).map(i=>optsFor(k)[i].t);
+  const li=a=>a.length?`<ul>${a.map(x=>`<li>${x}</li>`).join("")}</ul>`:`<p class="hint">— не заполнено —</p>`;
+  return `<section class="sheet medcard">
+    <div class="mc-head"><span class="eyebrow">Медицинская карта амбулаторного больного</span><h3>Запись первичного приёма</h3>
+    <p class="hint">Пациент: ${c.name}, ${c.age} лет, ${c.job} · Врач (студент): ${esc(S.student||"не указан")}</p></div>
+    <div class="mc-row"><b>Жалобы</b><div>${(s=>s.charAt(0).toUpperCase()+s.slice(1))(c.complaint.replace(/^Доктор, /,""))}</div></div>
+    <div class="mc-row"><b>Анамнез</b><div>${S.answers.length?`<ul>${S.answers.map(x=>`<li>${x.q} — <i>${x.a}</i></li>`).join("")}</ul>`:"— не собран —"}</div></div>
+    <div class="mc-row"><b>Объективно</b><div>${S.examined.length?`<ul>${S.examined.map(z=>`<li>${zoneName(z)}: ${c.exam.zones[z].f}</li>`).join("")}</ul>`:"— осмотр не проведён —"}${S.scraped?`<p>Поскабливание: ${c.exam.scrape}</p>`:""}</div></div>
+    <div class="mc-row"><b>Выявлено</b><div>${li(sel("exam"))}</div></div>
+    <div class="mc-row"><b>Дифференциальная диагностика</b><div>${li(sel("diff"))}</div></div>
+    <div class="mc-row"><b>Диагноз</b><div>${sel("dx")[0]||"— не поставлен —"}</div></div>
+    <div class="mc-row"><b>План лечения</b><div>${li(sel("tx"))}</div></div>
+  </section>`;
+}
+function renderResult(){
+  const c=C(),keys=["anam","exam","diff","dx","tx"],sc={};keys.forEach(k=>sc[k]=stageScore(k));
+  const pct=Math.round(keys.reduce((a,k)=>a+sc[k],0)/keys.length*100),[gw,gn]=grade(pct);
+  const now=new Date().toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
+  const item=(right,t,tag,why)=>`<div class="ritem ${right?"good":"badc"}"><span class="m">${right?"✓":"✗"}</span><div><div>${t} <span class="tag">· ${tag}</span></div>${why?`<div class="why">${why}</div>`:""}</div></div>`;
+  const review=k=>{const list=optsFor(k),sel=S.sel[k]||[];
+    let zonesHtml="";
+    if(k==="exam"){const zs=c.exam.zones;
+      zonesHtml=`<p class="eyebrow">Осмотренные зоны</p><div class="rev">${ZONES.filter(z=>zs[z.id].key||S.examined.includes(z.id)).map(z=>{const e=S.examined.includes(z.id),key=zs[z.id].key;
+        return item(e||!key,z.n,e?(key?"осмотрено":"осмотрено дополнительно"):"пропущено",key?zs[z.id].why:"");}).join("")}</div><p class="eyebrow">Симптомы и феномены</p>`;}
+    return zonesHtml+`<div class="rev">${list.map((o,i)=>{const chose=sel.includes(i),right=(chose===o.ok);
+      if(k==="dx"&&!chose&&!o.ok)return"";
+      return item(right,o.t,chose?(o.ok?"выбрано верно":"выбрано ошибочно"):(o.ok?"пропущено":"верно не выбрано"),o.why);}).join("")}</div>`;};
+  app.innerHTML=`<div class="wrap" style="max-width:none">${stepsBar()}
+  <section class="sheet">
+    <span class="eyebrow">Заключение профессора</span>
+    <div class="verdict">
+      <img class="pic profr" src="${IMG}prof-${gn==="5"?"thumb":gn==="4"?"explain":gn==="3"?"neutral":"think"}.webp" alt="Профессор">
+      <div style="display:grid;gap:6px;min-width:0">
+        <h2>Ваша оценка: ${gw}</h2>
+        <p>${profComment(sc)}</p>
+        <p class="hint">Студент: <b>${esc(S.student||"не указан")}</b> · Пациент: ${c.name}, ${c.age} лет · ${now}</p>
+      </div>
+      <div class="stampbox"><span class="g">«${gn}»</span><span class="pct">${pct}%</span></div>
+    </div>
+    <table class="scores"><tbody>${keys.map((k,i)=>`<tr><td>${STAGES[i].n}</td><td style="width:40%"><div class="bar"><i style="width:${Math.round(sc[k]*100)}%"></i></div></td><td>${Math.round(sc[k]*100)}%</td></tr>`).join("")}
+      <tr><td>Доверие пациента</td><td><div class="bar"><i class="${mood()}" style="width:${S.trust}%"></i></div></td><td>${S.trust}%</td></tr></tbody></table>
+    ${DISCLAIMER}
+    <p class="note">Сделайте скриншот этого экрана и записи в медкарте ниже — разберите результат с преподавателем.</p>
+  </section>
+  <section class="sheet"><span class="eyebrow">Итог приёма</span><div class="duo"><figure><img class="pic" src="${patImg()}" alt=""><figcaption>${c.name}: доверие ${S.trust}%</figcaption></figure><figure><img class="pic" src="${studImg(gn>="4"?"happy":"think")}" alt=""><figcaption>${esc(S.student||"Студент")}</figcaption></figure></div></section>
+  ${medRecord()}
+  ${keys.map((k,i)=>`<section class="sheet"><h3>Разбор · ${STAGES[i].n} · ${Math.round(sc[k]*100)}%</h3>${review(k)}</section>`).join("")}
+  <div class="btns"><button id="again">Выбрать другого пациента</button></div></div>`;
+  document.getElementById("again").onclick=()=>{S.stage=-1;S.caseId=null;render();window.scrollTo(0,0);};
+}
+
+render();
+</script>
+
+</body></html>
