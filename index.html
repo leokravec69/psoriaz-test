@@ -150,6 +150,20 @@ i.good{background:var(--ok)!important} i.mid{background:var(--warn)!important} i
 .profr{width:260px;height:auto;min-height:0;aspect-ratio:1100/740}
 @media (max-width:760px){.intro{grid-template-columns:minmax(0,1fr)!important}}
 @media (max-width:560px){.verdict{grid-template-columns:minmax(0,1fr)!important}.profr{width:100%}}
+@media print{
+  :root{--paper:#fff;--sheet:#fff;--ink:#000;--muted:#444;--line:#ccc;--accent:#1c6b86;--accent-soft:#eef5f8;--stamp:#b3261e;--ok:#2b7a4b;--ok-soft:#eef7f1;--bad-soft:#fbeeed;color-scheme:light}
+  html,body{background:#fff!important}
+  body{padding:0!important;font-size:11pt}
+  .steps,.btns,footer,.stud,.no-print,#who{display:none!important}
+  .sheet{border:1px solid #ccc;animation:none!important;break-inside:auto;padding:12px}
+  .ritem,.mc-row,.verdict,.scores tr{break-inside:avoid}
+  .medcard,.verdict{break-inside:avoid}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .wrap{gap:10px;max-width:none}
+  .banner{height:110px}
+  .scene.res{height:150px;width:140px}
+  @page{size:A4;margin:12mm}
+}
 footer{font-size:.75rem;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:in .25s ease-out}@keyframes in{from{transform:translateY(4px)}to{transform:none}}}
 </style>
@@ -649,12 +663,13 @@ function renderResult(){
     <table class="scores"><tbody>${keys.map((k,i)=>`<tr><td>${STAGES[i].n}</td><td style="width:40%"><div class="bar"><i style="width:${Math.round(sc[k]*100)}%"></i></div></td><td>${Math.round(sc[k]*100)}%</td></tr>`).join("")}
       <tr><td>Доверие пациента</td><td><div class="bar"><i class="${mood()}" style="width:${S.trust}%"></i></div></td><td>${S.trust}%</td></tr></tbody></table>
     ${DISCLAIMER}
-    <p class="note">Сделайте скриншот этого экрана и записи в медкарте ниже — разберите результат с преподавателем.</p>
+    <p class="note no-print">Распечатайте результат или сохраните в PDF кнопкой внизу страницы (или Cmd+P / Ctrl+P) и разберите его с преподавателем.</p>
   </section>
   <section class="sheet"><span class="eyebrow">Итог приёма</span><div class="duo"><figure><div class="scene res"><img src="${patImg()}" alt=""></div><figcaption>${c.name}: доверие ${S.trust}%</figcaption></figure><figure><img class="pic" src="${studImg(gn>="4"?"happy":"think")}" alt=""><figcaption>${esc(S.student||"Студент")}</figcaption></figure></div></section>
   ${medRecord()}
   ${keys.map((k,i)=>`<section class="sheet"><h3>Разбор · ${STAGES[i].n} · ${Math.round(sc[k]*100)}%</h3>${review(k)}</section>`).join("")}
-  <div class="btns"><button id="again">Выбрать другого пациента</button></div></div>`;
+  <div class="btns">${window.self===window.top?`<button id="print">Распечатать / сохранить в PDF</button>`:""}<button id="again" class="ghost">Выбрать другого пациента</button></div></div>`;
+  const pr=document.getElementById("print");if(pr)pr.onclick=()=>window.print();
   document.getElementById("again").onclick=()=>{S.stage=-1;S.caseId=null;render();window.scrollTo(0,0);};
 }
 
