@@ -115,8 +115,9 @@ i.good{background:var(--ok)!important} i.mid{background:var(--warn)!important} i
 .pic{background:#fff;border-radius:6px;object-fit:contain;display:block;max-width:100%}
 .patient .pat{width:100%;aspect-ratio:4/5;object-fit:contain;justify-self:center}
 .task{position:relative}
-.stud{float:right;height:130px;width:auto;margin:0 0 6px 12px;background:#fff;border-radius:6px}
-@media (max-width:560px){.stud{height:90px}}
+.stud{position:absolute;top:14px;right:14px;height:120px;width:auto;background:#fff;border-radius:6px}
+.task{padding-right:110px}
+@media (max-width:560px){.stud{display:none}.task{padding-right:20px}}
 .disclaimer{border:1px solid var(--stamp);background:var(--bad-soft);color:var(--ink);border-radius:6px;padding:12px 14px;font-size:.92rem}
 .disclaimer b{color:var(--stamp)}
 .intro{display:grid;grid-template-columns:160px minmax(0,1fr);gap:18px;align-items:center}
@@ -135,6 +136,20 @@ i.good{background:var(--ok)!important} i.mid{background:var(--warn)!important} i
 .duo{display:flex;flex-wrap:wrap;gap:14px}
 .duo figure{margin:0;display:grid;gap:4px;font-size:.85rem;color:var(--muted)}
 .duo .pic{height:200px;width:auto}
+.scene{background:#e9eef0 url(assets/room.webp) 58% 40%/cover no-repeat;border-radius:6px;overflow:hidden;display:flex;align-items:flex-end;justify-content:center;aspect-ratio:4/5;width:100%}
+.scene img{height:86%;width:auto;max-width:100%;object-fit:contain;display:block}
+.pcard .scene.mini{width:90px;height:110px;aspect-ratio:auto}
+.scene.res{height:220px;width:200px;aspect-ratio:auto}
+.intro{background:url(assets/room.webp) center 35%/cover no-repeat;border-radius:8px;padding:18px}
+.intro .panel{display:grid;gap:10px;min-width:0;background:var(--sheet);border-radius:8px;padding:16px 18px;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+.intro .prof{box-shadow:0 2px 10px rgba(0,0,0,.15)}
+.banner{background:url(assets/desk.webp) center 60%/cover no-repeat;height:170px;border-radius:6px;margin:-6px -6px 0}
+.intro{background:none!important;padding:0!important;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)!important;align-items:stretch!important}
+.profdesk{width:100%;height:100%;object-fit:cover;border-radius:8px;display:block;min-height:220px}
+.verdict{grid-template-columns:260px minmax(0,1fr) auto!important}
+.profr{width:260px;height:auto;min-height:0;aspect-ratio:1100/740}
+@media (max-width:760px){.intro{grid-template-columns:minmax(0,1fr)!important}}
+@media (max-width:560px){.verdict{grid-template-columns:minmax(0,1fr)!important}.profr{width:100%}}
 footer{font-size:.75rem;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:in .25s ease-out}@keyframes in{from{transform:translateY(4px)}to{transform:none}}}
 </style>
@@ -437,8 +452,8 @@ function renderStart(){
     ${DISCLAIMER}
     <label class="opt ack ${S.ack?"sel":""}"><input type="checkbox" id="ack" ${S.ack?"checked":""}><span>Понимаю: это тестовая программа, результаты нужно проверять со специалистом.</span></label>
     <div class="intro">
-      <img class="pic prof" src="${IMG}professor.webp" alt="Профессор">
-      <div style="display:grid;gap:10px;min-width:0">
+      <img class="profdesk" src="${IMG}desk-professor.webp" alt="Профессор за столом в кабинете">
+      <div class="panel">
         <span class="eyebrow">Зачётный приём</span>
         <h2>Вы — врач-дерматовенеролог на приёме</h2>
         <div class="bubble">Коллега, к вам пришёл пациент. Соберите анамнез, проведите осмотр, выберите заболевания для дифференциальной диагностики, поставьте диагноз и составьте план лечения. Следите за доверием пациента: от него зависит, насколько откровенно он отвечает. Оценку я поставлю в конце, по ходу подсказок не будет.</div>
@@ -451,7 +466,7 @@ function renderStart(){
     <div style="display:grid;gap:8px"><h3>Выберите пациента</h3>
     <p class="hint" id="need" aria-live="polite"></p>
     <div class="start-cards">
-      ${CASES.map(c=>`<button class="pcard" data-case="${c.id}"><img class="pic" src="${IMG}pat-${c.sex}-good.webp" alt=""><div><b>${c.name}</b><span>${c.age} лет · ${c.job}${S.done.includes(c.id)?" · пройден":""}</span></div></button>`).join("")}
+      ${CASES.map(c=>`<button class="pcard" data-case="${c.id}"><div class="scene mini"><img src="${IMG}pat-${c.sex}-good.webp" alt=""></div><div><b>${c.name}</b><span>${c.age} лет · ${c.job}${S.done.includes(c.id)?" · пройден":""}</span></div></button>`).join("")}
     </div></div>
   </div>`;
   const keep=()=>{S.student=document.getElementById("stname").value.trim();};
@@ -478,7 +493,7 @@ function stepsBar(){return `<ol class="steps">${STAGES.map((s,i)=>`<li class="${
 function trustMeter(){return `<div class="trust"><div class="trust-row"><span class="eyebrow">Доверие пациента</span><span class="tv">${S.trust}% · ${trustWord()}</span></div><div class="tbar"><i class="${mood()}" style="width:${S.trust}%"></i></div></div>`;}
 
 function patientCard(){const c=C();return `<aside class="sheet patient">
-  <img class="pic pat" src="${patImg()}" alt="${c.name}">
+  <div class="scene"><img src="${patImg()}" alt="${c.name}"></div>
   ${trustMeter()}
   <dl class="field"><dt>Пациент</dt><dd>${c.name}</dd><dt>Возраст</dt><dd>${c.age} лет</dd><dt>Работа</dt><dd>${c.job}</dd></dl>
   <div><span class="eyebrow">Жалобы</span><div class="bubble">${c.complaint}</div></div>
@@ -594,6 +609,7 @@ function medRecord(){
   const c=C(),sel=k=>(S.sel[k]||[]).map(i=>optsFor(k)[i].t);
   const li=a=>a.length?`<ul>${a.map(x=>`<li>${x}</li>`).join("")}</ul>`:`<p class="hint">— не заполнено —</p>`;
   return `<section class="sheet medcard">
+    <div class="banner" role="img" aria-label="Стол врача с медкартой"></div>
     <div class="mc-head"><span class="eyebrow">Медицинская карта амбулаторного больного</span><h3>Запись первичного приёма</h3>
     <p class="hint">Пациент: ${c.name}, ${c.age} лет, ${c.job} · Врач (студент): ${esc(S.student||"не указан")}</p></div>
     <div class="mc-row"><b>Жалобы</b><div>${(s=>s.charAt(0).toUpperCase()+s.slice(1))(c.complaint.replace(/^Доктор, /,""))}</div></div>
@@ -622,7 +638,7 @@ function renderResult(){
   <section class="sheet">
     <span class="eyebrow">Заключение профессора</span>
     <div class="verdict">
-      <img class="pic profr" src="${IMG}prof-${gn==="5"?"thumb":gn==="4"?"explain":gn==="3"?"neutral":"think"}.webp" alt="Профессор">
+      <img class="profdesk profr" src="${IMG}desk-prof-${gn==="5"?"thumb":gn==="4"?"explain":gn==="3"?"neutral":"think"}.webp" alt="Профессор">
       <div style="display:grid;gap:6px;min-width:0">
         <h2>Ваша оценка: ${gw}</h2>
         <p>${profComment(sc)}</p>
@@ -635,7 +651,7 @@ function renderResult(){
     ${DISCLAIMER}
     <p class="note">Сделайте скриншот этого экрана и записи в медкарте ниже — разберите результат с преподавателем.</p>
   </section>
-  <section class="sheet"><span class="eyebrow">Итог приёма</span><div class="duo"><figure><img class="pic" src="${patImg()}" alt=""><figcaption>${c.name}: доверие ${S.trust}%</figcaption></figure><figure><img class="pic" src="${studImg(gn>="4"?"happy":"think")}" alt=""><figcaption>${esc(S.student||"Студент")}</figcaption></figure></div></section>
+  <section class="sheet"><span class="eyebrow">Итог приёма</span><div class="duo"><figure><div class="scene res"><img src="${patImg()}" alt=""></div><figcaption>${c.name}: доверие ${S.trust}%</figcaption></figure><figure><img class="pic" src="${studImg(gn>="4"?"happy":"think")}" alt=""><figcaption>${esc(S.student||"Студент")}</figcaption></figure></div></section>
   ${medRecord()}
   ${keys.map((k,i)=>`<section class="sheet"><h3>Разбор · ${STAGES[i].n} · ${Math.round(sc[k]*100)}%</h3>${review(k)}</section>`).join("")}
   <div class="btns"><button id="again">Выбрать другого пациента</button></div></div>`;
